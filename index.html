@@ -252,6 +252,11 @@ function el(h){app.innerHTML=h}
 function esc(t){return String(t==null?'':t).replace(/[<>&"']/g,'')}
 function blob(p,size){var s=size||40;return '<div class="blob" style="width:'+s+'px;height:'+s+'px;background:'+(p.c||'#ccc')+'"><div class="eyes"><div class="eye"></div><div class="eye"></div></div></div>';}
 function isHost(){return R&&R.host===ME}
+function fmtV(v,label){
+  if(typeof v!=='number')return v;
+  if(label==='초')return v.toFixed(2);
+  return v;
+}
 function P(){ // 참가자 배열 (자리 순)
   if(!R||!R.players)return [];
   return Object.keys(R.players).map(function(n){var p=R.players[n];return {n:n,c:p.c,score:p.score||0,seat:p.seat||0,online:p.online!==false,me:n===ME}})
@@ -333,7 +338,7 @@ async function hostTick(){
 async function settle(rd,subs){
   var g=gameById(R.gameId),hi=!!g.hiScore;
   var rows=Object.keys(subs).filter(function(k){return k[0]!=='_'}).map(function(n){
-    var s=subs[n];return {n:n,v:s.v,tb:s.tb||0,label:s.label||'',hi:!!s.hi};
+    var s=subs[n];return {n:n,v:s.v,tb:s.tb||0,label:s.label||'',hi:!!s.hi,disp:s.disp||null};
   });
   if(!rows.length)return;
   hi=rows[0].hi;
@@ -390,9 +395,13 @@ async function hostBackToLobby(){
 }
 
 /* ================= 점수 제출 ================= */
-async function finish(v,label,hi,tb){
-  playing=false;
-  await set(ref(db,'rooms/'+CODE+'/rounds/'+R.round+'/'+ME),{v:v,label:label||'',hi:!!hi,tb:tb||0});
+var playRound=0, submitted=false;
+async function finish(v,label,hi,tb,disp){
+  if(submitted||playRound!==R.round)return;
+  submitted=true;playing=false;
+  var o={v:v,label:label||'',hi:!!hi,tb:tb||0};
+  if(disp!=null)o.disp=String(disp);
+  await set(ref(db,'rooms/'+CODE+'/rounds/'+playRound+'/'+ME),o);
 }
 
 /* ================= 라우팅 ================= */
@@ -607,7 +616,7 @@ function resultScreen(){
       var p=mp[r.n]||{c:'#ddd'};
       return '<div class="ritem '+(r.n===ME?'me':'')+'" style="animation-delay:'+(i*.08)+'s">'+
         '<div class="pos">'+(i+1)+'</div>'+blob(p,30)+esc(r.n)+
-        '<div class="val">'+(r.v==null?'미완료':r.v+(r.label||''))+'</div>'+
+        '<div class="val">'+(r.v==null?'미완료':(r.disp?r.disp:fmtV(r.v,r.label))+(r.label||''))+'</div>'+
         '<div class="gain">+'+r.pt+'</div></div>'
     }).join('')+'</div>'+
     (isHost()?'<button class="btn" id="nx" style="margin-top:10px">누적 순위 보기</button>'
@@ -677,6 +686,7 @@ function confetti(){
 
 /* ================= 게임 실행 ================= */
 function playScreen(){
+  playRound=R.round;submitted=false;
   var f=({react:gReact,seven:gSeven,ten:gTen,add:gAdd,mul:gMul,stroop:gStroop,simon:gSimon,
     odd:gOdd,rps:gRps,circle:gCircle,tap:gTap,sum:gSum,mole:gMole,order:gOrder,pair:gPair,
     count:gCount,chase:gChase,slider:gSlider,nunchi:gNunchi,minor:gMinor})[R.gameId];
@@ -746,7 +756,7 @@ function gTen(){
     var e=(Date.now()-t0)/1000,d=+Math.abs(e-10).toFixed(2);var good=d<.5;beep(good?880:400,.14);
     s.style.background=good?'#C8F2DE':'#FFFFFF';
     st.innerHTML='<div class="tiny">기록</div><div class="mid">'+e.toFixed(2)+'</div><div class="sub" style="margin-top:6px">'+(e>10?'+':'−')+d.toFixed(2)+'초</div>'+(d<.15?'<div class="title" style="font-size:22px;margin-top:8px;color:#3FA97C">완벽</div>':'');
-    finish(d,'초');}
+    finish(d,'초',false,0,e.toFixed(2));}
 }
 
 /* ---------- 사칙연산 공통 껍데기 ---------- */
@@ -792,7 +802,7 @@ function gQuiz(gen,bg,sign){
   }
   function done(){
     cancelAnimationFrame(raf);
-    var t=+((Date.now()-t0)/1000+pen).toFixed(1);
+    var t=+((Date.now()-t0)/1000+pen).toFixed(2);
     el('<div class="screen center" id="s" style="background:'+bg+'">'+
       '<div class="tiny">기록</div><div class="mid">'+t.toFixed(1)+'</div><div class="sub">초</div>'+
       (pen?'<div class="tiny" style="margin-top:10px">오답 페널티 +'+pen+'초</div>':'<div class="tiny" style="margin-top:10px">무실수</div>')+
@@ -859,7 +869,7 @@ function gStroop(){
   }
   function done(){
     cancelAnimationFrame(raf);
-    var t=+((Date.now()-t0)/1000+pen).toFixed(1);
+    var t=+((Date.now()-t0)/1000+pen).toFixed(2);
     el('<div class="screen center" id="s" style="background:#EDE4FB">'+
       '<div class="tiny">기록</div><div class="mid">'+t.toFixed(1)+'</div><div class="sub">초</div>'+
       (pen?'<div class="tiny" style="margin-top:10px">오답 페널티 +'+pen.toFixed(1)+'초</div>':'<div class="tiny" style="margin-top:10px">무실수</div>')+
@@ -981,7 +991,7 @@ function gOdd(){
   }
   function done(){
     cancelAnimationFrame(raf);
-    var t=+((Date.now()-t0)/1000+pen).toFixed(1);
+    var t=+((Date.now()-t0)/1000+pen).toFixed(2);
     el('<div class="screen center" id="s" style="background:#E4F7EE">'+
       '<div class="tiny">기록</div><div class="mid">'+t.toFixed(1)+'</div><div class="sub">초</div>'+
       (pen?'<div class="tiny" style="margin-top:10px">오답 페널티 +'+pen.toFixed(1)+'초</div>':'<div class="tiny" style="margin-top:10px">무실수</div>')+
@@ -1032,7 +1042,7 @@ function gRps(){
   }
   function done(){
     cancelAnimationFrame(raf);
-    var t=+((Date.now()-t0)/1000+pen).toFixed(1);
+    var t=+((Date.now()-t0)/1000+pen).toFixed(2);
     el('<div class="screen center" id="s" style="background:#FFEEDC">'+
       '<div class="tiny">기록</div><div class="mid">'+t.toFixed(1)+'</div><div class="sub">초</div>'+
       (pen?'<div class="tiny" style="margin-top:10px">오답 페널티 +'+pen.toFixed(1)+'초</div>':'<div class="tiny" style="margin-top:10px">무실수</div>')+
@@ -1145,7 +1155,7 @@ function gTap(){
   }
   function done(){
     cancelAnimationFrame(raf);
-    var t=+((Date.now()-t0)/1000+pen).toFixed(1);
+    var t=+((Date.now()-t0)/1000+pen).toFixed(2);
     el('<div class="screen center" id="s" style="background:#DCEEF8">'+
       '<div class="tiny">기록</div><div class="mid">'+t.toFixed(1)+'</div><div class="sub">초</div>'+
       (pen?'<div class="tiny" style="margin-top:10px">오답 페널티 +'+pen.toFixed(1)+'초</div>':'<div class="tiny" style="margin-top:10px">무실수</div>')+
@@ -1207,7 +1217,7 @@ function gSum(){
   }
   function done(){
     cancelAnimationFrame(raf);
-    var t=+((Date.now()-t0)/1000+pen).toFixed(1);
+    var t=+((Date.now()-t0)/1000+pen).toFixed(2);
     el('<div class="screen center" id="s" style="background:#FFF0D6">'+
       '<div class="tiny">기록</div><div class="mid">'+t.toFixed(1)+'</div><div class="sub">초</div>'+
       (pen?'<div class="tiny" style="margin-top:10px">오답 페널티 +'+pen.toFixed(1)+'초</div>':'<div class="tiny" style="margin-top:10px">무실수</div>')+
@@ -1357,7 +1367,7 @@ function gOrder(){
   }
   function done(){
     cancelAnimationFrame(raf);
-    var t=+((Date.now()-t0)/1000+pen).toFixed(1);
+    var t=+((Date.now()-t0)/1000+pen).toFixed(2);
     el('<div class="screen center" id="s" style="background:#DFF1EA">'+
       '<div class="tiny">기록</div><div class="mid">'+t.toFixed(1)+'</div><div class="sub">초</div>'+
       (pen?'<div class="tiny" style="margin-top:10px">오답 페널티 +'+pen.toFixed(1)+'초</div>':'<div class="tiny" style="margin-top:10px">무실수</div>')+
@@ -1415,7 +1425,7 @@ function gPair(){
   }
   function done(){
     cancelAnimationFrame(raf);
-    var t=+((Date.now()-t0)/1000).toFixed(1);
+    var t=+((Date.now()-t0)/1000).toFixed(2);
     el('<div class="screen center" id="s" style="background:#FFE9F1">'+
       '<div class="tiny">기록</div><div class="mid">'+t.toFixed(1)+'</div><div class="sub">초</div>'+
     '</div>');
@@ -1533,7 +1543,7 @@ function gChase(){
   }
   function done(){
     cancelAnimationFrame(raf);
-    var t=+((performance.now()-t0)/1000+pen).toFixed(1);
+    var t=+((performance.now()-t0)/1000+pen).toFixed(2);
     el('<div class="screen center" id="s" style="background:#DFF2F0">'+
       '<div class="tiny">기록</div><div class="mid">'+t.toFixed(1)+'</div><div class="sub">초</div>'+
       (pen?'<div class="tiny" style="margin-top:10px">헛손질 +'+pen.toFixed(1)+'초</div>':'<div class="tiny" style="margin-top:10px">헛손질 없음</div>')+
