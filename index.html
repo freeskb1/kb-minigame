@@ -2891,8 +2891,6 @@ function gSumo(TEAM){
 function gSnake(){
   var ps=P().filter(function(p){return p.online});
   var N=ps.length, host=isHost();
-  var TM=TEAM?teamsFor(ps.map(function(p){return p.n}),(R.round*7919+(R.briefAt||0))>>>0):null;
-  function colOf(p){return TM?TEAMC[TM[p.n]]:p.c}
   var startAt=(R.live&&R.live[R.round]&&R.live[R.round].startAt)||now();
   var base='rooms/'+CODE+'/live/'+R.round+'/snake';
   var COLS=26,ROWS=40,TICK0=195,TICKMIN=95,FOODN=9,CAP=75000;
@@ -3052,12 +3050,7 @@ function gSnake(){
       var moved=false;
       while(acc>=tk){acc-=tk;step();moved=true}
       var alive=ps.filter(function(p){return sim[p.n]&&sim[p.n].a});
-      var done;
-      if(TM){
-        var t0c=alive.filter(function(p){return TM[p.n]===0}).length;
-        var t1c=alive.length-t0c;
-        done=(t0c===0||t1c===0)||(e>CAP);
-      }else done=(alive.length<=1)||(e>CAP);
+      var done=(alive.length<=1)||(e>CAP);
       if(moved||done)pushSt(done);
       if(done&&!ended){ended=true;
         alive.sort(function(a,b){return sim[a.n].b.length-sim[b.n].b.length});
