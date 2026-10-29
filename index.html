@@ -159,6 +159,7 @@ button:active{transform:translateY(3px) scale(.99)}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://kwangbban.vercel.app/hub.js" defer></script>
 </head>
 <body>
 <div id="app"></div>
@@ -449,6 +450,41 @@ async function joinRoom(code){
     await update(ref(db,'rooms/'+code+'/players/'+ME),{online:true});
   }
   attach(code);
+}
+/* 광배월드에서 넘어온 경우: 홈·닉네임 건너뛰고 방 h{room}에 바로 입장 (방장 = 광배월드 방장) */
+var HUB=(function(){
+  var q=new URLSearchParams(location.search),room=q.get('room')||'',sid=q.get('sid'),uid=q.get('uid');
+  var nm=(q.get('name')||'').trim().replace(/[.#$\[\]\/]/g,'').slice(0,6);
+  return !LOCAL&&/^\d{4}$/.test(room)&&sid&&uid&&nm?{code:'h'+room,sid:sid,uid:uid,name:nm,host:q.get('host')==='1'}:null;
+})();
+function hubMsg(m){el('<div class="screen center"><div class="grow"></div><div class="sub" style="font-size:16px">'+esc(m)+'</div><div class="grow"></div></div>')}
+async function hubEnter(){
+  ME=HUB.name;screenNow='hub';
+  var code=HUB.code,rr=db.ref('rooms/'+code);
+  if(HUB.host){
+    await rr.transaction(function(r){ // 없거나 예전 판의 방이면 새로 만들기 · 이번 판 방이면 그대로 (새로고침)
+      if(r&&r.hubSid===HUB.sid)return;
+      var pl={};pl[ME]={c:C[0],score:0,seat:0,online:true,hubUid:HUB.uid};
+      return {host:ME,hubSid:HUB.sid,total:5,mode:'pick',state:'lobby',round:0,gameId:null,createdAt:Date.now(),players:pl};
+    });
+  }else hubMsg('방장을 기다리는 중…');
+  function wait(s){ // 이번 판 방이 생길 때까지 기다렸다가 입장
+    var r=s.val();
+    if(!r||r.hubSid!==HUB.sid)return;
+    rr.off('value',wait);
+    var ps=r.players||{},p=ps[ME];
+    if(p&&p.online&&p.hubUid&&p.hubUid!==HUB.uid){hubMsg('이미 쓰는 이름이야');return}
+    var pr;
+    if(p)pr=update(ref(db,'rooms/'+code+'/players/'+ME),{online:true,hubUid:HUB.uid}); // 같은 사람 재접속: 자리·점수 그대로
+    else{
+      var used=Object.keys(ps).map(function(k){return ps[k].seat||0});
+      var seat=0;while(used.indexOf(seat)>=0)seat++;
+      var taken=Object.keys(ps).map(function(k){return ps[k].c});
+      pr=set(ref(db,'rooms/'+code+'/players/'+ME),{c:freeColor(taken),score:0,seat:seat,online:true,hubUid:HUB.uid});
+    }
+    pr.then(function(){attach(code)},function(){home('광배월드 방에 못 들어갔어')});
+  }
+  rr.on('value',wait);
 }
 function attach(code){
   CODE=code;
@@ -2012,7 +2048,7 @@ function gMinor(){
   }
 }
 
-home();
+if(HUB)hubEnter().catch(function(){home('광배월드 방에 못 들어갔어')});else home();
 /* ---------- 줄넘기 (실시간 카운트) ---------- */
 function gRope(){
   var ps=P().filter(function(p){return p.online});
