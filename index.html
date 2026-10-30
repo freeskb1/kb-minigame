@@ -451,7 +451,7 @@ async function joinRoom(code){
   }
   attach(code);
 }
-/* 광배월드에서 넘어온 경우: 홈·닉네임 건너뛰고 방 h{room}에 바로 입장 (방장 = 광배월드 방장) */
+/* 말랑월드에서 넘어온 경우: 홈·닉네임 건너뛰고 방 h{room}에 바로 입장 (방장 = 말랑월드 방장) */
 var HUB=(function(){
   var q=new URLSearchParams(location.search),room=q.get('room')||'',sid=q.get('sid'),uid=q.get('uid');
   var nm=(q.get('name')||'').trim().replace(/[.#$\[\]\/]/g,'').slice(0,6);
@@ -482,7 +482,7 @@ async function hubEnter(){
       var taken=Object.keys(ps).map(function(k){return ps[k].c});
       pr=set(ref(db,'rooms/'+code+'/players/'+ME),{c:freeColor(taken),score:0,seat:seat,online:true,hubUid:HUB.uid});
     }
-    pr.then(function(){attach(code)},function(){home('광배월드 방에 못 들어갔어')});
+    pr.then(function(){attach(code)},function(){home('말랑월드 방에 못 들어갔어')});
   }
   rr.on('value',wait);
 }
@@ -2048,7 +2048,7 @@ function gMinor(){
   }
 }
 
-if(HUB)hubEnter().catch(function(){home('광배월드 방에 못 들어갔어')});else home();
+if(HUB)hubEnter().catch(function(){home('말랑월드 방에 못 들어갔어')});else home();
 /* ---------- 줄넘기 (실시간 카운트) ---------- */
 function gRope(){
   var ps=P().filter(function(p){return p.online});
