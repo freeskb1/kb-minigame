@@ -507,7 +507,7 @@ async function hubEnter(){
     await rr.transaction(function(r){ // 없거나 예전 판의 방이면 새로 만들기 · 이번 판 방이면 그대로 (새로고침)
       if(r&&r.hubSid===HUB.sid)return;
       var pl={};pl[ME]={c:C[0],score:0,seat:0,online:true,hubUid:HUB.uid};
-      return {host:ME,hubSid:HUB.sid,total:5,mode:'pick',state:'lobby',round:0,gameId:null,createdAt:Date.now(),players:pl};
+      return {host:ME,hubSid:HUB.sid,total:5,mode:'pick',state:'lobby',round:0,gameId:null,createdAt:Date.now(),players:pl,seen:(r&&r.seen)||null}; // 나온 게임(seen)은 새 판에도 이어짐
     });
   }else hubMsg('방장을 기다리는 중…');
   function wait(s){ // 이번 판 방이 생길 때까지 기다렸다가 입장
@@ -632,17 +632,22 @@ async function hostStart(){
 async function nextRound(){
   var rd=(R.round||0)+1;
   if(R.mode==='random'){
-    var used=R.used||{};
-    var pool=GAMES.filter(function(g){return playable(g)&&!used[g.id]});
+    // seen: 판이 바뀌어도 이어지는 "나온 게임" · 다 나왔으면 비우고 다시 (이번 판 used만 피함)
+    var used=R.used||{},seen=R.seen||{};
+    var pool=GAMES.filter(function(g){return playable(g)&&!used[g.id]&&!seen[g.id]});
+    var reseen=!pool.length;
+    if(reseen)pool=GAMES.filter(function(g){return playable(g)&&!used[g.id]});
     if(!pool.length)pool=GAMES.filter(function(g){return playable(g)});
     var g=pool[Math.floor(Math.random()*pool.length)];
-    await update(roomRef(),{round:rd,state:'brief',gameId:g.id,briefAt:serverTimestamp(),['used/'+g.id]:true});
+    var upd={round:rd,state:'brief',gameId:g.id,briefAt:serverTimestamp(),['used/'+g.id]:true};
+    if(reseen)upd.seen={[g.id]:true};else upd['seen/'+g.id]=true;
+    await update(roomRef(),upd);
   }else{
     await update(roomRef(),{round:rd,state:'pick',gameId:null});
   }
 }
 async function hostPick(id){
-  await update(roomRef(),{state:'brief',gameId:id,briefAt:serverTimestamp(),['used/'+id]:true});
+  await update(roomRef(),{state:'brief',gameId:id,briefAt:serverTimestamp(),['used/'+id]:true,['seen/'+id]:true});
 }
 async function hostToPlay(){
   var ro={};P().forEach(function(p){if(p.online)ro[p.n]=true});
@@ -890,7 +895,8 @@ function pickScreen(){
     };
   });
   document.getElementById('rnd').onclick=function(){
-    var idxs=[];GAMES.forEach(function(g,i){if(playable(g)&&!(R.used&&R.used[g.id]))idxs.push(i)});
+    var idxs=[];GAMES.forEach(function(g,i){if(playable(g)&&!(R.used&&R.used[g.id])&&!(R.seen&&R.seen[g.id]))idxs.push(i)}); // 예전 판에 나온 것도 되도록 피하기
+    if(!idxs.length)GAMES.forEach(function(g,i){if(playable(g)&&!(R.used&&R.used[g.id]))idxs.push(i)});
     if(!idxs.length)GAMES.forEach(function(g,i){if(playable(g))idxs.push(i)});
     var n=0,tot=14+Math.floor(Math.random()*8),k=0;
     var iv=setInterval(function(){
